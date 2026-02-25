@@ -135,8 +135,14 @@ async def on_left_chat_member(client: Client, message: Message):
 @app.on_message(filters.text)
 async def chat_reply(client, message):
     if message.text.startswith("/"):
-        return  # ignore command
-    await message.reply_text(f"You said: {message.text}")
+        return
+
+    user_msg = message.text
+
+    # Call Groq API
+    response = await groq_ask(user_msg)  # function me Groq API call
+
+    await message.reply_text(response)
 
 # Help command for displaying instructions
 @app.on_message(filters.command("help"))

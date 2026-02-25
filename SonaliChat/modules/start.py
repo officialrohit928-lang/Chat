@@ -132,6 +132,9 @@ async def on_left_chat_member(client: Client, message: Message):
             ])
         )
 
+@app.on_message(filters.text & ~filters.command)
+async def chat_reply(client, message):
+    await message.reply_text(f"You said: {message.text}")
 
 
 # Help command for displaying instructions

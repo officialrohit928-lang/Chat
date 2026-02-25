@@ -1,3 +1,5 @@
+aiohttp==3.9.5
+pyrogram==2.3.69
 pymongo
 motor
 requests
@@ -6,6 +8,5 @@ tgcrypto
 asyncio
 python-dotenv
 openai
-aiohttp
 cloudscraper
 git+https://github.com/Mayuri-Chan/pyrofork

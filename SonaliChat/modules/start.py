@@ -131,11 +131,12 @@ async def on_left_chat_member(client: Client, message: Message):
                 [InlineKeyboardButton("sᴇᴇ ɢʀᴏᴜᴘ", url=f"https://t.me/{message.chat.username}" if message.chat.username else "https://t.me/purvi_support")]
             ])
         )
-
-@app.on_message(filters.text & ~filters.command)
+        
+@app.on_message(filters.text)
 async def chat_reply(client, message):
+    if message.text.startswith("/"):
+        return  # ignore command
     await message.reply_text(f"You said: {message.text}")
-
 
 # Help command for displaying instructions
 @app.on_message(filters.command("help"))

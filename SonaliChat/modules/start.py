@@ -17,6 +17,39 @@ from SonaliChat.modules.helpers import (
     HELP_ABOUT,
 )
 
+import aiohttp
+import os
+
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")  # Heroku config me set karo
+
+async def groq_ask(prompt: str) -> str:
+    url = "https://api.groq.com/v1/generate"  # example endpoint
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "prompt": prompt,
+        "max_tokens": 150
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, headers=headers, json=data) as resp:
+            if resp.status == 200:
+                result = await resp.json()
+                # assume response me 'text' field hai
+                return result.get("text", "Sorry, I couldn't generate a reply.")
+            else:
+                return "Sorry, Groq API error!"
+
+@app.on_message(filters.text)
+async def chat_reply(client, message):
+    if message.text.startswith("/"):
+        return  # ignore commands
+
+    user_msg = message.text
+    response = await groq_ask(user_msg)
+    await message.reply_text(response)
 
 @app.on_message(filters.command(["start", "aistart"]) & ~filters.bot)
 async def start(client, m: Message):
@@ -132,18 +165,6 @@ async def on_left_chat_member(client: Client, message: Message):
             ])
         )
         
-@app.on_message(filters.text)
-async def chat_reply(client, message):
-    if message.text.startswith("/"):
-        return
-
-    user_msg = message.text
-
-    # Call Groq API
-    response = await groq_ask(user_msg)  # function me Groq API call
-
-    await message.reply_text(response)
-
 # Help command for displaying instructions
 @app.on_message(filters.command("help"))
 async def help_command(client, message):

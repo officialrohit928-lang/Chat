@@ -6,7 +6,9 @@
     "SonaliChat",
     "MongoDB",
     "Python",
-    "Pyrogram"
+    "Pyrogram",
+    "Groq AI",
+    "LLaMA3"
   ],
   "buildpacks": [
     {
@@ -47,6 +49,11 @@
     },
     "OWNER_ID": {
       "description": "User ID of the bot owner.",
+      "required": true,
+      "value": ""
+    },
+    "GROQ_API_KEY": {
+      "description": "Your Groq AI API Key from https://console.groq.com/.",
       "required": true,
       "value": ""
     }

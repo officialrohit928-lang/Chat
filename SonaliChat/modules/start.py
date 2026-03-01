@@ -53,11 +53,17 @@ async def groq_ask(prompt: str) -> str:
                 print("Groq Error:", error_text)
                 return "Server busy hai 😅 thodi der me try karo"
 
-@app.on_message(filters.text & ~filters.command(["start", "aistart", "help"]))
+@app.on_message(
+    filters.text 
+    & ~filters.command(["start", "aistart", "help"]) 
+    & ~filters.reply
+)
 async def chat_reply(client, message):
+    
     if message.text.startswith("/"):
-        return  # ignore commands
+        return
 
+    # Agar kisi ko reply nahi hai tabhi chalega
     user_msg = message.text
     response = await groq_ask(user_msg)
     await message.reply_text(response)

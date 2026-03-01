@@ -53,19 +53,43 @@ async def groq_ask(prompt: str) -> str:
                 print("Groq Error:", error_text)
                 return "Server busy hai 😅 thodi der me try karo"
 
-@app.on_message(
-    filters.text 
-    & ~filters.command(["start", "aistart", "help"]) 
-    & ~filters.reply
-)
+@app.on_message(filters.text & ~filters.command(["start", "aistart", "help"]))
 async def chat_reply(client, message):
-    
-    if message.text.startswith("/"):
+
+    if message.from_user.is_bot:
+        return  # bots ko ignore kare
+
+    bot = await client.get_me()
+    bot_username = bot.username.lower()
+    text = message.text.lower()
+
+    trigger = False
+
+    # 1️⃣ Normal message (kisi ko reply nahi)
+    if not message.reply_to_message:
+        trigger = True
+
+    # 2️⃣ Agar reply hai
+    if message.reply_to_message:
+        # Agar bot ke message pe reply hai
+        if message.reply_to_message.from_user and \
+           message.reply_to_message.from_user.id == bot.id:
+            trigger = True
+        else:
+            return  # kisi aur user ko reply hai → ignore
+
+    # 3️⃣ Bot tag hua ho
+    if f"@{bot_username}" in text:
+        trigger = True
+
+    # 4️⃣ "sonali" word ho
+    if "sonali" in text:
+        trigger = True
+
+    if not trigger:
         return
 
-    # Agar kisi ko reply nahi hai tabhi chalega
-    user_msg = message.text
-    response = await groq_ask(user_msg)
+    response = await groq_ask(message.text)
     await message.reply_text(response)
 
 @app.on_message(filters.command(["start", "aistart"]) & ~filters.bot)

@@ -23,24 +23,35 @@ import os
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")  # Heroku config me set karo
 
 async def groq_ask(prompt: str) -> str:
-    url = "https://api.groq.com/v1/generate"  # example endpoint
+    if not GROQ_API_KEY:
+        return "Groq API key missing hai 😅"
+
+    url = "https://api.groq.com/openai/v1/chat/completions"
+
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
+
     data = {
-        "prompt": prompt,
-        "max_tokens": 150
+        "model": "llama-3.1-8b-instant",
+        "messages": [
+            {"role": "system", "content": "You are Sonali, friendly Indian girl. Reply in short Hinglish."},
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 150,
+        "temperature": 0.9
     }
 
     async with aiohttp.ClientSession() as session:
         async with session.post(url, headers=headers, json=data) as resp:
             if resp.status == 200:
                 result = await resp.json()
-                # assume response me 'text' field hai
-                return result.get("text", "Sorry, I couldn't generate a reply.")
+                return result["choices"][0]["message"]["content"]
             else:
-                return "Sorry, Groq API error!"
+                error_text = await resp.text()
+                print("Groq Error:", error_text)
+                return "Server busy hai 😅 thodi der me try karo"
 
 @app.on_message(filters.text)
 async def chat_reply(client, message):

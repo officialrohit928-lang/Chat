@@ -17,8 +17,8 @@ LOGGER_GROUP_ID = -1003615518040
 BOT_NAME = os.environ.get("BOT_NAME","𝐒‌‌σ፝֠֩‌ηᴧℓɪ")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "Sonalichatbot")
-SUPPORT_GROUP = os.environ.get("SUPPORT_GROUP", "PURVI_SUPPORT")
-UPDATES_CHANNEL = os.environ.get("UPDATES_CHANNEL", "PURVI_SUPPORT")
+SUPPORT_GROUP = os.environ.get("SUPPORT_GROUP", "shrutixvcsupport")
+UPDATES_CHANNEL = os.environ.get("UPDATES_CHANNEL", "YOURX_SHADOW")
 
 STICKER = [
 "CAACAgUAAxkBAAKV2Ge_HEejUGb8foZZ9eunAivt46rNAAL9EQAC-EXwV3yNmpSjijuwHgQ",

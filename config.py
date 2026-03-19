@@ -14,6 +14,7 @@ FSUB = getenv("FSUB", True)
 OWNER_ID = int(getenv("OWNER_ID", None))
 OWNER = 8143754205
 LOGGER_GROUP_ID = -1003615518040
+USER_SESSION = os.environ.get("USER_SESSION")   
 BOT_NAME = os.environ.get("BOT_NAME","𝐒‌‌σ፝֠֩‌ηᴧℓɪ")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "Sonalichatbot")

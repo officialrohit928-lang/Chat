@@ -1,38 +1,74 @@
 import asyncio
 import random
+import os
+import aiohttp
 
-from pyrogram import Client, filters
-from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, Message
+from pyrogram import Client, filters, idle
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
 from pyrogram.enums import ChatType
 
-from config import STICKER, FSUB, IMG, LOGGER_GROUP_ID, BOT_USERNAME
-from SonaliChat import app
-from SonaliChat.database import add_user, add_chat, get_fsub, chatsdb
-from SonaliChat.modules.helpers import (
-    STBUTTON,
-    HELP_BACK,
-    ABOUT_BUTTON,
-    START,
-    HELP_READ,
-    HELP_ABOUT,
+# -------------------------
+# CONFIG (Heroku config vars)
+# -------------------------
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+API_ID = int(os.environ.get("API_ID"))
+API_HASH = os.environ.get("API_HASH")
+USER_SESSION = os.environ.get("USER_SESSION")        # String session for userbot
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+LOGGER_GROUP_ID = int(os.environ.get("LOGGER_GROUP_ID", 0))
+BOT_USERNAME = os.environ.get("BOT_USERNAME", "SonaliChatBot")
+
+# Optional assets
+STICKER = []      # list of sticker file_ids
+IMG = []          # list of photo URLs
+FSUB = False      # force subscribe
+START = "👋 Hello! I am Sonali, your AI assistant 😎"
+HELP_READ = "📖 This is the help section"
+HELP_ABOUT = "ℹ️ About Sonali AI"
+STBUTTON = [[InlineKeyboardButton("ʙᴀᴄᴋ ᴛᴏ ʜᴏᴍᴇ", callback_data="back")]]
+
+# -------------------------
+# DATABASE MOCK (replace with real)
+# -------------------------
+chatsdb = {}   # dummy dictionary, replace with MongoDB or SQLite
+async def add_user(user_id, username=None):
+    chatsdb[user_id] = {"username": username}
+async def add_chat(chat_id, chat_title):
+    chatsdb[chat_id] = {"title": chat_title}
+async def get_fsub(client, m): return True   # placeholder
+
+# -------------------------
+# BOT CLIENT
+# -------------------------
+app = Client(
+    "bot",
+    api_id=API_ID,
+    api_hash=API_HASH,
+    bot_token=BOT_TOKEN
 )
 
-import aiohttp
-import os
+# -------------------------
+# USERBOT CLIENT
+# -------------------------
+userbot = Client(
+    "userbot",
+    session_string=USER_SESSION,
+    api_id=API_ID,
+    api_hash=API_HASH
+)
 
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")  # Heroku config me set karo
-
+# -------------------------
+# GROQ API FUNCTION
+# -------------------------
 async def groq_ask(prompt: str) -> str:
     if not GROQ_API_KEY:
-        return "Groq API key missing hai 😅"
+        return "Groq API key missing 😅"
 
     url = "https://api.groq.com/openai/v1/chat/completions"
-
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
-
     data = {
         "model": "llama-3.1-8b-instant",
         "messages": [
@@ -42,7 +78,6 @@ async def groq_ask(prompt: str) -> str:
         "max_tokens": 150,
         "temperature": 0.9
     }
-
     async with aiohttp.ClientSession() as session:
         async with session.post(url, headers=headers, json=data) as resp:
             if resp.status == 200:
@@ -51,220 +86,136 @@ async def groq_ask(prompt: str) -> str:
             else:
                 error_text = await resp.text()
                 print("Groq Error:", error_text)
-                return "Server busy hai 😅 thodi der me try karo"
+                return "Server busy 😅 try again later"
 
+# -------------------------
+# BOT HANDLERS
+# -------------------------
 @app.on_message(filters.text & ~filters.command(["start", "aistart", "help"]))
-async def chat_reply(client, message):
-
+async def chat_reply(client, message: Message):
     if message.from_user.is_bot:
-        return  # bots ko ignore kare
+        return
 
     bot = await client.get_me()
     bot_username = bot.username.lower()
     text = message.text.lower()
-
     trigger = False
 
-    # 1️⃣ Normal message (kisi ko reply nahi)
     if not message.reply_to_message:
         trigger = True
-
-    # 2️⃣ Agar reply hai
-    if message.reply_to_message:
-        # Agar bot ke message pe reply hai
-        if message.reply_to_message.from_user and \
-           message.reply_to_message.from_user.id == bot.id:
-            trigger = True
-        else:
-            return  # kisi aur user ko reply hai → ignore
-
-    # 3️⃣ Bot tag hua ho
-    if f"@{bot_username}" in text:
+    if message.reply_to_message and message.reply_to_message.from_user.id == bot.id:
         trigger = True
-
-    # 4️⃣ "sonali" word ho
-    if "sonali" in text:
+    if f"@{bot_username}" in text or "sonali" in text:
         trigger = True
-
     if not trigger:
         return
 
     response = await groq_ask(message.text)
     await message.reply_text(response)
 
+# Start / aistart command
 @app.on_message(filters.command(["start", "aistart"]) & ~filters.bot)
 async def start(client, m: Message):
     if FSUB and not await get_fsub(client, m):
         return
 
-    bot_name = app.name
+    user_id = m.from_user.id
+    await add_user(user_id, m.from_user.username or None)
 
-    if m.chat.type == ChatType.PRIVATE:
-        user_id = m.from_user.id
-        await add_user(user_id, m.from_user.username or None)
+    if STICKER and isinstance(STICKER, list):
+        sticker_to_send = random.choice(STICKER)
+        umm = await m.reply_sticker(sticker=sticker_to_send)
+        await asyncio.sleep(1)
+        await umm.delete()
 
-        if STICKER and isinstance(STICKER, list):
-            sticker_to_send = random.choice(STICKER)
-            umm = await m.reply_sticker(sticker=sticker_to_send)
-            await asyncio.sleep(1)
-            await umm.delete()
-
-        # 
-        log_msg = f"**✦ ηєᴡ ᴜsєʀ sᴛᴧʀᴛєᴅ ᴛʜє ʙσᴛ**\n\n**➻ ᴜsєʀ :** [{m.from_user.first_name}](tg://user?id={user_id})\n**➻ ɪᴅ :** `{user_id}`"
+    log_msg = f"**✦ ηєᴡ ᴜsєʀ sᴛᴧʀᴛєᴅ ᴛʜє ʙσᴛ**\n\n**➻ ᴜsєʀ :** [{m.from_user.first_name}](tg://user?id={user_id})\n**➻ ɪᴅ :** `{user_id}`"
+    if LOGGER_GROUP_ID:
         await client.send_message(LOGGER_GROUP_ID, log_msg)
 
+    accha = await m.reply_text(text="**ꜱᴛᴧʀᴛɪηɢ....🥀**")
+    await asyncio.sleep(1)
+    await accha.edit("**ᴘɪηɢ ᴘσηɢ...🍫**")
+    await asyncio.sleep(0.5)
+    await accha.edit("**ꜱᴛᴧʀᴛєᴅ.....😱**")
+    await asyncio.sleep(0.5)
+    await accha.delete()
 
-        accha = await m.reply_text(text="**ꜱᴛᴧʀᴛɪηɢ....🥀**")
-        await asyncio.sleep(1)
-        await accha.edit("**ᴘɪηɢ ᴘσηɢ...🍫**")
-        await asyncio.sleep(0.5)
-        await accha.edit("**ꜱᴛᴧʀᴛєᴅ.....😱**")
-        await asyncio.sleep(0.5)
-        await accha.delete()
-
-        # 
-        await m.reply_photo(
-        photo=random.choice(IMG),
+    await m.reply_photo(
+        photo=random.choice(IMG) if IMG else None,
         caption=START,
-        reply_markup=InlineKeyboardMarkup(STBUTTON),
+        reply_markup=InlineKeyboardMarkup(STBUTTON)
     )
 
+# -------------------------
+# USERBOT HANDLERS
+# -------------------------
+@userbot.on_message(filters.text & ~filters.me)
+async def userbot_chat(client, message: Message):
+    text = message.text.lower()
+    trigger = False
 
+    if not message.reply_to_message:
+        trigger = True
+    if message.reply_to_message and message.reply_to_message.from_user.is_self:
+        trigger = True
+    if "sonali" in text:
+        trigger = True
+    if not trigger:
+        return
 
-### *add bot* ###
-@app.on_message(filters.new_chat_members)
-async def on_new_chat_members(client: Client, message: Message):
-    if (await client.get_me()).id in [user.id for user in message.new_chat_members]:
-        chat_id = message.chat.id
-        chat_title = message.chat.title
-        added_by = message.from_user.mention if message.from_user else "Unknown User"
-        chatusername = f"@{message.chat.username}" if message.chat.username else "Private Chat"
+    response = await groq_ask(message.text)
+    await message.reply_text(response)
 
-        # invite link
-        try:
-            invite_link = await client.export_chat_invite_link(chat_id)
-        except Exception:
-            invite_link = "Not Available"
-
-        # 
-        await add_chat(chat_id, chat_title)
-
-        # 
-        await message.reply_photo(
-            photo=random.choice(IMG),
-            caption=START,
-            reply_markup=InlineKeyboardMarkup([
-                [
-                    InlineKeyboardButton("ᴧᴅᴅ ϻє ʙᴧʙʏ", url=f"https://t.me/{BOT_USERNAME}?startgroup=s&admin=delete_messages+manage_video_chats+pin_messages+invite_users"),
-                    InlineKeyboardButton("ᴊσɪη sᴜᴘᴘσʀᴛ", url="https://t.me/YOURX_SHADOW")
-                ]
-            ])
-        )
-
-        # 
-        log_msg = (
-            f"<b>✦ ʙᴏᴛ #ᴀᴅᴅᴇᴅ ɪɴ ᴀ ɢʀᴏᴜᴘ</b>\n\n"
-            f"**⚘ ɢʀᴏᴜᴘ ɴᴀᴍᴇ :** {chat_title}\n"
-            f"**⚘ ɢʀᴏᴜᴘ ɪᴅ :** {chat_id}\n"
-            f"**⚘ ᴜsᴇʀɴᴀᴍᴇ :** {chatusername}\n"
-            f"**⚘ ɢʀᴏᴜᴘ ʟɪɴᴋ : [ᴛᴀᴘ ʜᴇʀᴇ]({invite_link})**\n"
-            f"**⚘ ᴀᴅᴅᴇᴅ ʙʏ :** {added_by}"
-        )
-
-        await app.send_photo(
-            LOGGER_GROUP_ID,
-            photo=random.choice(IMG),
-            caption=log_msg,
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("ɢʀᴏᴜᴘ ʟɪɴᴋ", url=invite_link if invite_link != "Not Available" else "https://t.me/YOURX_SHADOW")]
-            ])
-        )
-        
-@app.on_message(filters.left_chat_member)
-async def on_left_chat_member(client: Client, message: Message):
-    if (await client.get_me()).id == message.left_chat_member.id:
-        chat_id = message.chat.id
-        chat_title = message.chat.title
-        remove_by = message.from_user.mention if message.from_user else "Unknown User"
-       
-         # 
-        await chatsdb.delete_one({"chat_id": chat_id})
-        
-        left_msg = (
-            f"<b>✦ ʙᴏᴛ #ʟᴇғᴛ ᴀ ɢʀᴏᴜᴘ</b>\n\n"
-            f"**⚘ ɢʀᴏᴜᴘ ɴᴀᴍᴇ :** {chat_title}\n"
-            f"**⚘ ɢʀᴏᴜᴘ ɪᴅ :** {chat_id}\n"
-            f"**⚘ ʀᴇᴍᴏᴠᴇᴅ ʙʏ :** {remove_by}"
-        )
-        
-        await app.send_photo(
-            LOGGER_GROUP_ID,
-            photo=random.choice(IMG),
-            caption=left_msg,
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("sᴇᴇ ɢʀᴏᴜᴘ", url=f"https://t.me/{message.chat.username}" if message.chat.username else "https://t.me/YOURX_SHADOW")]
-            ])
-        )
-        
-# Help command for displaying instructions
-@app.on_message(filters.command("help"))
-async def help_command(client, message):
-    hmm = await message.reply_photo(
-        photo=random.choice(IMG),
-        caption=HELP_READ,
-        reply_markup=InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("ᴀᴅᴅ ᴍᴇ ʙᴀʙʏ", url=f"https://t.me/{client.me.username}?startgroup=s&admin=delete_messages+manage_video_chats+pin_messages+invite_users"),
-                InlineKeyboardButton("ᴊᴏɪɴ sᴜᴘᴘᴏʀᴛ", url="https://t.me/YOURX_SHADOW")
-            ]
-        ])
-    )
-    
-
-
-# Help 
-@app.on_callback_query(filters.regex('help'))
-async def help_button(client, callback_query):
-    help_text=HELP_READ
-    
-    keyboard = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("ʙᴀᴄᴋ ᴛᴏ ʜᴏᴍᴇ", callback_data="back"),
-            InlineKeyboardButton("ᴊᴏɪɴ sᴜᴘᴘᴏʀᴛ", url="https://t.me/YOURX_SHADOW")
-        ]
-    ])
-    await callback_query.answer()
-    await callback_query.message.edit_text(help_text, reply_markup=keyboard)
-
-# Back to Menu callback handler
+# -------------------------
+# CALLBACK QUERY HANDLERS
+# -------------------------
 @app.on_callback_query(filters.regex('back'))
 async def back_to_menu(client, callback_query):
-    
-    # Back to Menu 
     await callback_query.message.edit_text(
         text=START,
         reply_markup=InlineKeyboardMarkup(STBUTTON),
     )
 
-
-
-# About Section  Callback Handler
-@app.on_callback_query(filters.regex('ABOUT'))
-async def about_section(client, callback_query):
-    about_text = HELP_ABOUT  # About Section 
-    
-    keyboard = InlineKeyboardMarkup(ABOUT_BUTTON)  # About Section 
-    
-    await callback_query.answer()
-    await callback_query.message.edit_text(about_text, reply_markup=keyboard)
-
-
-
-
-#Help Home Callback Handler
 @app.on_callback_query(filters.regex('HELP_BACK'))
 async def help_back(client, callback_query):
     await callback_query.message.edit_text(
         text=START,
         reply_markup=InlineKeyboardMarkup(STBUTTON)
     )
+
+@app.on_callback_query(filters.regex('ABOUT'))
+async def about_section(client, callback_query):
+    await callback_query.message.edit_text(
+        text=HELP_ABOUT,
+        reply_markup=InlineKeyboardMarkup(STBUTTON)
+    )
+
+# -------------------------
+# GROUP ADD / LEFT HANDLERS
+# -------------------------
+@app.on_message(filters.new_chat_members)
+async def on_new_chat_members(client, message: Message):
+    if (await client.get_me()).id in [u.id for u in message.new_chat_members]:
+        chat_id = message.chat.id
+        chat_title = message.chat.title
+        await add_chat(chat_id, chat_title)
+
+@app.on_message(filters.left_chat_member)
+async def on_left_chat_member(client, message: Message):
+    if (await client.get_me()).id == message.left_chat_member.id:
+        chat_id = message.chat.id
+        chatsdb.pop(chat_id, None)
+
+# -------------------------
+# MAIN FUNCTION TO RUN BOTH
+# -------------------------
+async def main():
+    await asyncio.gather(
+        app.start(),      # start bot
+        userbot.start()   # start userbot
+    )
+    print("✅ Bot + Userbot dono chal rahe hain 😎")
+    await idle()  # keep running
+
+if __name__ == "__main__":
+    asyncio.run(main())
